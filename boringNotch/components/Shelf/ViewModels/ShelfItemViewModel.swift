@@ -34,6 +34,13 @@ final class ShelfItemViewModel: ObservableObject {
 
     var isSelected: Bool { selection.isSelected(item.id) }
 
+    /// Items in the same Shelf/Apps collection as the one this view-model represents.
+    /// All selection/multi-item operations are scoped against this list so the two
+    /// tabs behave as independent lists even though they share one backing store.
+    private var collectionItems: [ShelfItem] {
+        ShelfStateViewModel.shared.items(in: item.collection)
+    }
+
     func loadThumbnail() async {
         guard let url = item.fileURL else { return }
         if let image = await ThumbnailService.shared.thumbnail(for: url, size: CGSize(width: 56, height: 56)) {
@@ -43,7 +50,7 @@ final class ShelfItemViewModel: ObservableObject {
 
     // MARK: - Drag & Drop helpers
     func dragItemProvider() -> NSItemProvider {
-    let selectedItems = selection.selectedItems(in: ShelfStateViewModel.shared.items)
+        let selectedItems = selection.selectedItems(in: collectionItems)
         if selectedItems.count > 1 && selectedItems.contains(where: { $0.id == item.id }) {
             return createMultiItemProvider(for: selectedItems)
         }
@@ -100,7 +107,7 @@ final class ShelfItemViewModel: ObservableObject {
     func handleClick(event: NSEvent, view: NSView) {
         let flags = event.modifierFlags
         if flags.contains(.shift) {
-            selection.shiftSelect(to: item, in: ShelfStateViewModel.shared.items)
+            selection.shiftSelect(to: item, in: collectionItems)
         } else if flags.contains(.command) {
             selection.toggle(item)
         } else if flags.contains(.control) {
@@ -117,7 +124,7 @@ final class ShelfItemViewModel: ObservableObject {
     }
 
     func handleDoubleClick() {
-    let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+        let selected = ShelfSelectionModel.shared.selectedItems(in: collectionItems)
         for it in selected { ShelfActionService.open(it) }
     }
 
@@ -128,7 +135,7 @@ final class ShelfItemViewModel: ObservableObject {
             if case .text(let text) = item.kind {
                 itemsToShare.append(text)
             } else {
-                for item in ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items) {
+                for item in ShelfSelectionModel.shared.selectedItems(in: collectionItems) {
                     switch item.kind {
                     case .file:
                         // Use immediate update for user-initiated share action
@@ -216,7 +223,7 @@ final class ShelfItemViewModel: ObservableObject {
             menu.addItem(mi)
         }
 
-        let selectedItems = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+        let selectedItems = ShelfSelectionModel.shared.selectedItems(in: collectionItems)
         let selectedFileURLs = selectedItems.compactMap { $0.fileURL }
         let selectedLinkURLs: [URL] = selectedItems.compactMap { itm in
             if case .link(let url) = itm.kind { return url }
@@ -421,7 +428,7 @@ final class ShelfItemViewModel: ObservableObject {
             }
 
             if let appURL = sender.representedObject as? URL {
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 
                 Task {
                         var allSelectedURLs: [URL] = []
@@ -457,7 +464,7 @@ final class ShelfItemViewModel: ObservableObject {
             switch title {
             case "Quick Look":
                 // Handle all selected items for Quick Look, not just the clicked item
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 let urls: [URL] = selected.compactMap { item in
                     if let fileURL = item.fileURL {
                         return fileURL
@@ -472,18 +479,18 @@ final class ShelfItemViewModel: ObservableObject {
                 }
 
             case "Open":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 for it in selected { ShelfActionService.open(it) }
 
             case "Share…":
                 viewModel.shareItem(from: view)
 
             case "Rename":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 if selected.count == 1, let single = selected.first { showRenameDialog(for: single) }
 
             case "Show in Finder":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 Task {
                     let urls = await selected.asyncCompactMap { item -> URL? in
                         if case .file = item.kind {
@@ -500,7 +507,7 @@ final class ShelfItemViewModel: ObservableObject {
                 }
 
             case "Copy Path":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 let paths = selected.compactMap { $0.fileURL?.path }
                 if !paths.isEmpty {
                     NSPasteboard.general.clearContents()
@@ -508,7 +515,7 @@ final class ShelfItemViewModel: ObservableObject {
                 }
 
             case "Copy":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 let pb = NSPasteboard.general
                 
                 // Stop accessing previously copied URLs
@@ -541,7 +548,7 @@ final class ShelfItemViewModel: ObservableObject {
                 }
 
             case "Remove":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 for it in selected { ShelfActionService.remove(it) }
                 
             case "Remove Background":
@@ -554,7 +561,7 @@ final class ShelfItemViewModel: ObservableObject {
                 handleCreatePDF()
             
             case "Compress":
-                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
                 let fileURLs = selected.compactMap { $0.fileURL }
                 guard !fileURLs.isEmpty else { break }
 
@@ -789,7 +796,7 @@ final class ShelfItemViewModel: ObservableObject {
         
         @MainActor
         private func handleRemoveBackground() {
-            let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+            let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
             let imageURLs = selected.compactMap { $0.fileURL }.filter { ImageProcessingService.shared.isImageFile($0) }
             
             guard let imageURL = imageURLs.first else { return }
@@ -819,7 +826,7 @@ final class ShelfItemViewModel: ObservableObject {
         
         @MainActor
         private func handleCreatePDF() {
-            let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+            let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
             let imageURLs = selected.compactMap { $0.fileURL }.filter { ImageProcessingService.shared.isImageFile($0) }
             
             guard !imageURLs.isEmpty else { return }
@@ -849,7 +856,7 @@ final class ShelfItemViewModel: ObservableObject {
         
         @MainActor
         private func showConvertImageDialog() {
-            let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+            let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items(in: item.collection))
             let imageURLs = selected.compactMap { $0.fileURL }.filter { ImageProcessingService.shared.isImageFile($0) }
             
             guard let imageURL = imageURLs.first else { return }

@@ -252,8 +252,10 @@ private struct DraggableClickHandler<Content: View>: NSViewRepresentable {
         }
         
         private func startDragSession(with event: NSEvent) {
-            // Prepare dragging items
-            let selectedItems = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+            // Prepare dragging items — only consider items in the same collection (Shelf vs Apps)
+            // as the clicked item, so a drag from one tab never bundles items from the other.
+            let scopedItems = ShelfStateViewModel.shared.items(in: item.collection)
+            let selectedItems = ShelfSelectionModel.shared.selectedItems(in: scopedItems)
             let itemsToDrag: [ShelfItem]
 
             if selectedItems.count > 1 && selectedItems.contains(where: { $0.id == item.id }) {

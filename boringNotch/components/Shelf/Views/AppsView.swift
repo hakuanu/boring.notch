@@ -1,15 +1,17 @@
 //
-//  ShelfItemView.swift
+//  AppsView.swift
 //  boringNotch
 //
-//  Created by Alexander on 2025-09-24.
+//  Apps tab — mirrors ShelfView but only shows `.app` bundles that were dragged
+//  onto the notch. Apps and Shelf share the same `ShelfStateViewModel` store, just
+//  partitioned by `ShelfItem.collection`.
 //
 
 import SwiftUI
 import AppKit
 import Defaults
 
-struct ShelfView: View {
+struct AppsView: View {
     @EnvironmentObject var vm: BoringViewModel
     @StateObject var tvm = ShelfStateViewModel.shared
     @StateObject var selection = ShelfSelectionModel.shared
@@ -23,30 +25,31 @@ struct ShelfView: View {
                     .aspectRatio(1, contentMode: .fit)
                     .environmentObject(vm)
             }
-            
+
             panel
                 .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
                     handleDrop(providers: providers)
                 }
         }
-        // Bind Quick Look to shelf selection
         .onChange(of: selection.selectedIDs) {
             updateQuickLookSelection()
         }
         .quickLookPresenter(using: quickLookService)
     }
-    
+
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
         guard !selection.isDragging else { return false }
         vm.dropEvent = true
+        // Routing (apps vs shelf) is decided inside ShelfDropService based on whether the
+        // dropped URL is a `.app` bundle, so we just funnel providers through the shared loader.
         ShelfStateViewModel.shared.load(providers)
         return true
     }
-    
+
     private func updateQuickLookSelection() {
         guard quickLookService.isQuickLookOpen && !selection.selectedIDs.isEmpty else { return }
 
-        let selectedItems = selection.selectedItems(in: tvm.shelfItems)
+        let selectedItems = selection.selectedItems(in: tvm.appsItems)
         let urls: [URL] = selectedItems.compactMap { item in
             if let fileURL = item.fileURL {
                 return fileURL
@@ -56,7 +59,7 @@ struct ShelfView: View {
             }
             return nil
         }
-        
+
         if !urls.isEmpty {
             quickLookService.updateSelection(urls: urls)
         }
@@ -83,7 +86,7 @@ struct ShelfView: View {
 
     var content: some View {
         Group {
-            if tvm.shelfIsEmpty {
+            if tvm.appsIsEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "tray.and.arrow.down")
                         .symbolVariant(.fill)
@@ -91,7 +94,7 @@ struct ShelfView: View {
                         .foregroundStyle(.white, .gray)
                         .imageScale(.large)
 
-                    Text("Drop files here")
+                    Text("Drop apps here")
                         .foregroundStyle(.gray)
                         .font(.system(.title3, design: .rounded))
                         .fontWeight(.medium)
@@ -99,7 +102,7 @@ struct ShelfView: View {
             } else {
                 ScrollView(.horizontal) {
                     HStack(spacing: spacing) {
-                        ForEach(tvm.shelfItems) { item in
+                        ForEach(tvm.appsItems) { item in
                             ShelfItemView(item: item)
                                 .environmentObject(quickLookService)
                         }

@@ -19,12 +19,43 @@ final class ShelfStateViewModel: ObservableObject {
 
     var isEmpty: Bool { items.isEmpty }
 
+    // MARK: - Per-collection accessors
+    /// Items belonging to the Shelf tab (everything except `.app` bundles).
+    var shelfItems: [ShelfItem] { items.filter { $0.collection == .shelf } }
+    /// Items belonging to the Apps tab (dragged-in `.app` bundles).
+    var appsItems: [ShelfItem] { items.filter { $0.collection == .apps } }
+    var shelfIsEmpty: Bool { shelfItems.isEmpty }
+    var appsIsEmpty: Bool { appsItems.isEmpty }
+
+    /// Returns the items in the same collection as `item`. Used by item-level interactions
+    /// (shift-select, drag session, context menu) so they only ever see their own tab's list.
+    func items(in collection: ShelfCollection) -> [ShelfItem] {
+        items.filter { $0.collection == collection }
+    }
+
     // Queue for deferred bookmark updates to avoid publishing during view updates
     private var pendingBookmarkUpdates: [ShelfItem.ID: Data] = [:]
     private var updateTask: Task<Void, Never>?
 
     private init() {
         items = ShelfPersistenceService.shared.load()
+        migrateAppBundlesToAppsCollection()
+    }
+
+    /// One-time migration for users upgrading from a version where `.app` bundles lived in
+    /// the Shelf tab. Any existing `.shelf` item that resolves to an `.app` is moved to `.apps`.
+    private func migrateAppBundlesToAppsCollection() {
+        var changed = false
+        items = items.map { item in
+            guard item.collection == .shelf, item.isAppBundle else { return item }
+            changed = true
+            var moved = item
+            moved.collection = .apps
+            return moved
+        }
+        if changed {
+            NSLog("📦 Migrated existing .app bundles from Shelf to Apps collection")
+        }
     }
 
 
@@ -85,6 +116,12 @@ final class ShelfStateViewModel: ObservableObject {
             await MainActor.run {
                 self?.add(dropped)
                 self?.isLoading = false
+                // If a drop consisted only of .app bundles, surface the Apps tab so the user
+                // can see where their drop landed. If it was mixed or only non-apps, leave
+                // the coordinator's currentView alone (Shelf was likely already selected).
+                if !dropped.isEmpty, dropped.allSatisfy({ $0.collection == .apps }) {
+                    BoringViewCoordinator.shared.currentView = .apps
+                }
             }
         }
     }

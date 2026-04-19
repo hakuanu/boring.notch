@@ -8,6 +8,13 @@
 import AppKit
 import Foundation
 
+/// Which tab a ShelfItem belongs to. Items dragged in that are `.app` bundles go to `.apps`;
+/// all other file/text/link items go to `.shelf`.
+enum ShelfCollection: String, Codable, Equatable, Sendable {
+    case shelf
+    case apps
+}
+
 enum ShelfItemKind: Codable, Equatable, Sendable {
     case file(bookmark: Data)
     case text(string: String)
@@ -53,10 +60,32 @@ struct ShelfItem: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var kind: ShelfItemKind
     var isTemporary: Bool
-    init(id: UUID = UUID(), kind: ShelfItemKind, isTemporary: Bool = false) {
+    var collection: ShelfCollection
+    init(id: UUID = UUID(), kind: ShelfItemKind, isTemporary: Bool = false, collection: ShelfCollection = .shelf) {
         self.id = id
         self.kind = kind
         self.isTemporary = isTemporary
+        self.collection = collection
+    }
+
+    // MARK: - Codable
+    // Custom decoding so legacy on-disk payloads (which don't include `collection`) default to `.shelf`.
+    private enum CodingKeys: String, CodingKey { case id, kind, isTemporary, collection }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.kind = try container.decode(ShelfItemKind.self, forKey: .kind)
+        self.isTemporary = try container.decodeIfPresent(Bool.self, forKey: .isTemporary) ?? false
+        self.collection = try container.decodeIfPresent(ShelfCollection.self, forKey: .collection) ?? .shelf
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(isTemporary, forKey: .isTemporary)
+        try container.encode(collection, forKey: .collection)
     }
     
     var displayName: String {
@@ -183,6 +212,31 @@ private extension ShelfItem {
         }
 
         return image
+    }
+}
+
+// MARK: - App bundle detection
+extension ShelfItem {
+    /// True when this item is a file pointing at a macOS `.app` bundle.
+    /// Used to route drops into the Apps tab instead of the Shelf tab.
+    var isAppBundle: Bool {
+        guard case .file(let bookmarkData) = kind else { return false }
+        let bookmark = Bookmark(data: bookmarkData)
+        guard let url = bookmark.resolveURL() else { return false }
+        return ShelfItem.urlIsAppBundle(url)
+    }
+
+    /// Static helper so drop pipelines can classify a URL before constructing a ShelfItem.
+    /// Marked `nonisolated` so off-main-actor drop pipelines can call it without an actor hop.
+    nonisolated static func urlIsAppBundle(_ url: URL) -> Bool {
+        if url.pathExtension.lowercased() == "app" { return true }
+        // Also catch ".app" directories that may have been passed without the extension resolved.
+        if let isDir = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory,
+           isDir,
+           url.lastPathComponent.lowercased().hasSuffix(".app") {
+            return true
+        }
+        return false
     }
 }
 
