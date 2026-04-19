@@ -930,6 +930,9 @@ struct Shelf: View {
                 Defaults.Toggle(key: .boringShelf) {
                     Text("Enable shelf")
                 }
+                Defaults.Toggle(key: .showSharing) {
+                    Text("Enable sharing")
+                }
                 Defaults.Toggle(key: .openShelfByDefault) {
                     Text("Open shelf by default if items are present")
                 }

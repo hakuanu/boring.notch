@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import Defaults
 
 struct ShelfView: View {
     @EnvironmentObject var vm: BoringViewModel
@@ -17,9 +18,12 @@ struct ShelfView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            FileShareView()
-                .aspectRatio(1, contentMode: .fit)
-                .environmentObject(vm)
+            if Defaults[.showSharing] {
+                FileShareView()
+                    .aspectRatio(1, contentMode: .fit)
+                    .environmentObject(vm)
+            }
+            
             panel
                 .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
                     handleDrop(providers: providers)

@@ -8707,6 +8707,9 @@
         }
       }
     },
+    "Enable sharing" : {
+
+    },
     "Enable shelf" : {
       "localizations" : {
         "ar" : {
