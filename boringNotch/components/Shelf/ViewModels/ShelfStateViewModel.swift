@@ -6,6 +6,7 @@
 
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class ShelfStateViewModel: ObservableObject {
@@ -122,7 +123,32 @@ final class ShelfStateViewModel: ObservableObject {
                 if !dropped.isEmpty, dropped.allSatisfy({ $0.collection == .apps }) {
                     BoringViewCoordinator.shared.currentView = .apps
                 }
+//                else {
+//                    BoringViewCoordinator.shared.currentView = .shelf
+//                }
             }
+        }
+    }
+
+    /// Reads file URLs directly from the drag pasteboard and builds
+    /// `ShelfItem`s synchronously. Must be called from inside a drop handler
+    /// (while the drop session is live) — the security-scoped bookmarks we
+    /// create here would otherwise fail with "OpesyncExtractFileItemsration not permitted".
+    @MainActor
+    private static func syncExtractFileItems(fromDragPasteboard pasteboard: NSPasteboard) -> [ShelfItem] {
+        let urls = (pasteboard.readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL]) ?? []
+
+        return urls.compactMap { url -> ShelfItem? in
+            guard let bookmark = try? Bookmark(url: url) else { return nil }
+            let collection: ShelfCollection = ShelfItem.urlIsAppBundle(url) ? .apps : .shelf
+            return ShelfItem(
+                kind: .file(bookmark: bookmark.data),
+                isTemporary: false,
+                collection: collection
+            )
         }
     }
 

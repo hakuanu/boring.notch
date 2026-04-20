@@ -21,6 +21,7 @@ class BoringViewModel: NSObject, ObservableObject {
 
     @Published var dragDetectorTargeting: Bool = false
     @Published var generalDropTargeting: Bool = false
+    @Published var appDropTargeting: Bool = false
     @Published var dropZoneTargeting: Bool = false
     @Published var dropEvent: Bool = false
     @Published var anyDropZoneTargeting: Bool = false

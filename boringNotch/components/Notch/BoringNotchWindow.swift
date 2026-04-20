@@ -40,10 +40,13 @@ class BoringNotchWindow: NSPanel {
         hasShadow = false
     }
     
+    /// See `BoringNotchSkyLightWindow.canBecomeKey` — brief key-ability during
+    /// drags is required for the drop-target sandbox extension; otherwise we
+    /// stay out of the focus chain.
     override var canBecomeKey: Bool {
-        false
+        DragFocusBridge.isDragActive
     }
-    
+
     override var canBecomeMain: Bool {
         false
     }

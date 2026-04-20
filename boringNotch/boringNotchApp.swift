@@ -215,19 +215,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
+        detector.onApplicationDragEntersNotchRegion = { [weak self] in
+            Task { @MainActor in
+                self?.handleDragEntersNotchRegion(onScreen: screen, isApplication: true)
+            }
+        }
+        
         dragDetectors[uuid] = detector
         detector.startMonitoring()
     }
 
-    private func handleDragEntersNotchRegion(onScreen screen: NSScreen) {
+    private func handleDragEntersNotchRegion(onScreen screen: NSScreen, isApplication: Bool = false) {
         guard let uuid = screen.displayUUID else { return }
-        
+
+        let targetView: NotchViews = isApplication ? .apps : .shelf
+
         if Defaults[.showOnAllDisplays], let viewModel = viewModels[uuid] {
             viewModel.open()
-            coordinator.currentView = .shelf
+            coordinator.currentView = targetView
         } else if !Defaults[.showOnAllDisplays], let windowScreen = window?.screen, screen == windowScreen {
             vm.open()
-            coordinator.currentView = .shelf
+            coordinator.currentView = targetView
         }
     }
 

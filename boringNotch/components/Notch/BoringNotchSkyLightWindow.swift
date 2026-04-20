@@ -109,6 +109,12 @@ class BoringNotchSkyLightWindow: NSPanel {
     
     private var observers: Set<AnyCancellable> = []
     
-    override var canBecomeKey: Bool { false }
+    /// Returns `true` only while `DragFocusBridge.isDragActive` is set, so
+    /// AppKit can briefly make the notch key during a drop. macOS needs that
+    /// transition in order to grant the sandbox extension on the dragged URL;
+    /// without it, dropped files arrive unopenable and bookmarking fails.
+    /// Outside of drag sessions we preserve the existing "never key" behavior
+    /// so the notch doesn't steal focus from the user's active app.
+    override var canBecomeKey: Bool { DragFocusBridge.isDragActive }
     override var canBecomeMain: Bool { false }
 }

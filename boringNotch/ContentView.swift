@@ -12,6 +12,7 @@ import Defaults
 import KeyboardShortcuts
 import SwiftUI
 import SwiftUIIntrospect
+import UniformTypeIdentifiers
 
 @MainActor
 struct ContentView: View {
@@ -219,7 +220,7 @@ struct ContentView: View {
 
             if isTargeted {
                 if vm.notchState == .closed {
-                    coordinator.currentView = .shelf
+                    coordinator.currentView = vm.appDropTargeting ? .apps : .shelf
                     doOpen()
                 }
                 return
@@ -363,7 +364,7 @@ struct ContentView: View {
                 .opacity(gestureProgress != 0 ? 1.0 - min(abs(gestureProgress) * 0.1, 0.3) : 1.0)
             }
         }
-        .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $vm.generalDropTargeting))
+        .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $vm.generalDropTargeting, isDraggingApp: $vm.appDropTargeting))
     }
 
     @ViewBuilder
@@ -494,11 +495,11 @@ struct ContentView: View {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-        .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
-            vm.dropEvent = true
-            ShelfStateViewModel.shared.load(providers)
-            return true
-        }
+            .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
+                vm.dropEvent = true
+                ShelfStateViewModel.shared.load(providers)
+                return true
+            }
         } else {
             EmptyView()
         }
@@ -635,13 +636,16 @@ struct FullScreenDropDelegate: DropDelegate {
 
 struct GeneralDropTargetDelegate: DropDelegate {
     @Binding var isTargeted: Bool
+    @Binding var isDraggingApp: Bool
 
     func dropEntered(info: DropInfo) {
         isTargeted = true
+        isDraggingApp = isApplicationDrag(info: info)
     }
 
     func dropExited(info: DropInfo) {
         isTargeted = false
+        isDraggingApp = false
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -649,6 +653,55 @@ struct GeneralDropTargetDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        return false
+    }
+    
+    /// Provider types that indicate this is *not* an application drag, even if
+    /// some weaker app hint is also present.
+    private static let nonAppNegativeIdentifiers: [String] = [
+        UTType.folder.identifier,
+        UTType.directory.identifier,
+    ]
+    
+    /// UTIs that identify an application bundle drag.
+    private static let appUTIStrings: [String] = [
+        UTType.application.identifier,
+        UTType.applicationBundle.identifier,
+    ]
+    
+    /// Provider type identifiers the Dock attaches to drags of *applications*
+    /// out of stacks/folders. Used as a fallback when no concrete file URL has
+    /// been materialized on the pasteboard yet (promised file drags).
+    /// Intentionally narrow — broader hints like `com.apple.LaunchServices.bookmark`
+    /// also appear on regular Finder file/folder drags and would misclassify them.
+    private static let dockAppHintIdentifiers: [String] = [
+        "com.apple.dock.bundle-id",
+        "com.apple.application-bundle"
+    ]
+    
+    private func isApplicationDrag(info: DropInfo) -> Bool {
+        // Pull all providers up front so we can do both positive and negative checks.
+        let providers = info.itemProviders(for: [.fileURL, .url, .utf8PlainText, .plainText, .data])
+
+        // Negative check: if any item is a folder/directory, treat the whole drag
+        // as a content drag — folders may carry incidental app-adjacent hints
+        // (e.g. via Launch Services bookmarks) but should never route to apps.
+        let negativeSet = Set(Self.nonAppNegativeIdentifiers)
+        for provider in providers {
+            if !negativeSet.isDisjoint(with: provider.registeredTypeIdentifiers) {
+                return false
+            }
+        }
+
+        // Positive check: any provider carrying an app-bundle UTI or a Dock-private
+        // hint that's only attached to application drags (not regular files/folders).
+        let appHintSet = Set(Self.appUTIStrings + Self.dockAppHintIdentifiers)
+        for provider in providers {
+            if !appHintSet.isDisjoint(with: provider.registeredTypeIdentifiers) {
+                return true
+            }
+        }
+
         return false
     }
 }

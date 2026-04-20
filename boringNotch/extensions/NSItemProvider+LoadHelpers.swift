@@ -116,7 +116,7 @@ extension NSItemProvider {
                     // Some providers hand out a UTF-8 file URL string, others a bookmark. Prefer parsing string first.
                     if let string = String(data: data, encoding: .utf8) {
                         if let url = URL(string: string) {
-                            resolvedURL = url
+                            resolvedURL = (url as NSURL).fileReferenceURL()
                         } else if string.hasPrefix("/") {
                             // Plain file system path
                             resolvedURL = URL(fileURLWithPath: string)
