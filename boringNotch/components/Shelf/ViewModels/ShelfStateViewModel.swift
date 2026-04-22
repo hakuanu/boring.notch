@@ -112,20 +112,34 @@ final class ShelfStateViewModel: ObservableObject {
     func load(_ providers: [NSItemProvider]) {
         guard !providers.isEmpty else { return }
         isLoading = true
+
+        // Sync fast-path: read file URLs straight off the drag pasteboard and
+        // mint `.withSecurityScope` bookmarks *now*, while the drop's sandbox
+        // extension is still live. The async Task below runs after the
+        // extension has been revoked, so for TCC-protected locations
+        // (Desktop, Documents, Downloads, iCloud Drive, external volumes,
+        // network mounts) bookmarking from inside `ShelfDropService` fails
+        // with "Operation not permitted". This path sidesteps that — Full
+        // Disk Access does not help a sandboxed app here.
+        let syncItems = Self.syncExtractFileItems(fromDragPasteboard: NSPasteboard(name: .drag))
+        if !syncItems.isEmpty {
+            add(syncItems)
+        }
+
         Task { [weak self] in
             let dropped = await ShelfDropService.items(from: providers)
             await MainActor.run {
-                self?.add(dropped)
-                self?.isLoading = false
-                // If a drop consisted only of .app bundles, surface the Apps tab so the user
-                // can see where their drop landed. If it was mixed or only non-apps, leave
-                // the coordinator's currentView alone (Shelf was likely already selected).
-                if !dropped.isEmpty, dropped.allSatisfy({ $0.collection == .apps }) {
+                guard let self = self else { return }
+                self.add(dropped)
+                self.isLoading = false
+                // Consider items from BOTH paths when deciding whether to
+                // surface the Apps tab. The sync path usually owns file URLs,
+                // the async path owns text/web-link/promised-file providers.
+                // `add(_:)` dedupes by identityKey, so overlap is safe.
+                let combined = syncItems + dropped
+                if !combined.isEmpty, combined.allSatisfy({ $0.collection == .apps }) {
                     BoringViewCoordinator.shared.currentView = .apps
                 }
-//                else {
-//                    BoringViewCoordinator.shared.currentView = .shelf
-//                }
             }
         }
     }
