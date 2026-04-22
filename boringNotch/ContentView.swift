@@ -676,13 +676,19 @@ struct GeneralDropTargetDelegate: DropDelegate {
     /// also appear on regular Finder file/folder drags and would misclassify them.
     private static let dockAppHintIdentifiers: [String] = [
         "com.apple.dock.bundle-id",
-        "com.apple.application-bundle"
+        "com.apple.application-bundle",
+        "com.apple.application-file"
     ]
     
     private func isApplicationDrag(info: DropInfo) -> Bool {
-        // Pull all providers up front so we can do both positive and negative checks.
-        let providers = info.itemProviders(for: [.fileURL, .url, .utf8PlainText, .plainText, .data])
-
+        let allTypes: [UTType] = [
+            .fileURL, .url, .utf8PlainText, .plainText, .data,
+            UTType("com.apple.dock.bundle-id"),
+            UTType("com.apple.application-bundle"),
+            UTType("com.apple.application-file")
+        ].compactMap { $0 }  // UTType(_:) returns an optional for non-registered UTIs
+        let providers = info.itemProviders(for: allTypes)
+        
         // Negative check: if any item is a folder/directory, treat the whole drag
         // as a content drag — folders may carry incidental app-adjacent hints
         // (e.g. via Launch Services bookmarks) but should never route to apps.

@@ -55,16 +55,15 @@ final class DragDetector {
     /// Checks if the drag pasteboard contains an application bundle or an alias
     /// resolving to one (e.g. an item dragged from `/Applications` or a Dock folder).
     private func hasApplicationDragContent() -> Bool {
-        // 1) Dock-private signals — present for drags originating from the
-        //    persistent Dock area even when no concrete file URL has been
-        //    written to the pasteboard yet. Kept narrow to avoid misclassifying
-        //    ordinary Finder file/folder drags.
-        let dockAppTypes: [NSPasteboard.PasteboardType] = [
-            NSPasteboard.PasteboardType("com.apple.dock.bundle-id"),
-            NSPasteboard.PasteboardType("com.apple.application-bundle"),
-        ]
-        if let types = dragPasteboard.types, types.contains(where: dockAppTypes.contains) {
-            return true
+        // 1) Look at every item on the drag pasteboard individually — `.types` only
+        //    reports the first item's types, so multi-item Dock drags were missed.
+        if let items = dragPasteboard.pasteboardItems {
+            for item in items {
+                let raw = item.types.map(\.rawValue)
+                if raw.contains("com.apple.dock.bundle-id") || raw.contains("com.apple.application-bundle") || raw.contains("com.apple.application-file"){
+                    return true
+                }
+            }
         }
 
         // 2) Promised-file drags (Dock stacks, certain Finder sources) publish
