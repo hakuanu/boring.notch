@@ -710,6 +710,7 @@ struct Media: View {
 struct CalendarSettings: View {
     @ObservedObject private var calendarManager = CalendarManager.shared
     @Default(.showCalendar) var showCalendar: Bool
+    @Default(.calendarHasOwnTab) var calendarHasOwnTab: Bool
     @Default(.hideCompletedReminders) var hideCompletedReminders
     @Default(.hideAllDayEvents) var hideAllDayEvents
     @Default(.autoScrollToNextEvent) var autoScrollToNextEvent
@@ -718,6 +719,9 @@ struct CalendarSettings: View {
         Form {
             Defaults.Toggle(key: .showCalendar) {
                 Text("Show calendar")
+            }
+            Defaults.Toggle(key: .calendarHasOwnTab) {
+                Text("Calendar has own tab")
             }
             Defaults.Toggle(key: .hideCompletedReminders) {
                 Text("Hide completed reminders")

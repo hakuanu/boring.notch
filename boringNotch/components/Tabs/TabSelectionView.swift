@@ -14,10 +14,11 @@ struct TabModel: Identifiable {
     let view: NotchViews
 }
 
-let tabs = [
+var tabs = [
     TabModel(label: "Home", icon: "house.fill", view: .home),
     TabModel(label: "Shelf", icon: "tray.fill", view: .shelf),
-    TabModel(label: "Apps", icon: "square.grid.3x3.fill", view: .apps)
+    TabModel(label: "Apps", icon: "square.grid.3x3.fill", view: .apps),
+    TabModel(label: "Calendar", icon: "calendar", view: .calendar)
 ]
 
 struct TabSelectionView: View {

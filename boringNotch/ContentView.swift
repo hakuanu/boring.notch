@@ -352,6 +352,8 @@ struct ContentView: View {
                         ShelfView()
                     case .apps:
                         AppsView()
+                    case .calendar:
+                        NotchCalendarView()
                     }
                 }
                 .transition(

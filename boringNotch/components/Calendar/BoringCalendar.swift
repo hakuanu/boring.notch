@@ -184,8 +184,8 @@ struct CalendarView: View {
     @State private var selectedDate = Date()
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .center, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading) {
                     Text(selectedDate.formatted(.dateTime.month(.abbreviated)))
                         .font(.title3)
@@ -197,7 +197,7 @@ struct CalendarView: View {
                         .foregroundColor(Color(white: 0.65))
                 }
 
-                ZStack(alignment: .top) {
+                ZStack(alignment: .center) {
                     WheelPicker(selectedDate: $selectedDate, config: Config())
                     HStack(alignment: .top) {
                         LinearGradient(
@@ -212,6 +212,7 @@ struct CalendarView: View {
                     }
                 }
             }
+            .frame(width: 240)
 
             let filteredEvents = EventListView.filteredEvents(
                 events: calendarManager.events
@@ -224,7 +225,7 @@ struct CalendarView: View {
             }
         }
         .listRowBackground(Color.clear)
-        .frame(height: 120)
+        .frame(height: 120, alignment: .center)
         .onChange(of: selectedDate) {
             Task {
                 await calendarManager.updateCurrentDate(selectedDate)
@@ -260,6 +261,7 @@ struct EmptyEventsView: View {
                 .font(.caption)
                 .foregroundColor(Color(white: 0.65))
         }
+        .frame(width: 240)
     }
 }
 
@@ -338,6 +340,7 @@ struct EventListView: View {
                 scrollToRelevantEvent(proxy: proxy)
             }
         }
+        .frame(width: 240)
         Spacer(minLength: 0)
     }
 
@@ -474,7 +477,7 @@ struct ReminderToggle: View {
 
 #Preview {
     CalendarView()
-        .frame(width: 215, height: 130)
+        .frame(width: 500, height: 120)
         .background(.black)
         .environmentObject(BoringViewModel())
 }
